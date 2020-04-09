@@ -79,6 +79,13 @@ import Foundation
         }
     }
 
+    private func cacheWinningCreative(_ adm: String?, bidId: String?) {
+        guard let thisAdm = adm, let thisId = bidId else {
+            return
+        }
+        Prebid.shared.cache(response: thisAdm, withId: thisId)
+    }
+
     func processBids(_ data: Data) -> ([String: AnyObject], ResultCode) {
 
         do {
@@ -97,6 +104,7 @@ import Foundation
                     guard seatbid is [String: AnyObject], seatbidDict?["bid"] is [AnyObject] else { break }
                     let bids = seatbidDict?["bid"] as! [AnyObject]
                     for bid in bids {
+                        let adm = bid["adm"] as? String
                         var containBid = false
                         var adServerTargeting: [String: AnyObject]?
                         guard bid["ext"] != nil else { break }
@@ -108,7 +116,9 @@ import Foundation
                         for key in adServerTargeting!.keys {
                             if (key == "hb_cache_id") {
                                 containTopBid = true
-                             }
+                                let bidId = adServerTargeting!["hb_cache_id"] as? String
+                                cacheWinningCreative(adm, bidId: bidId)
+                            }
                             if (key.starts(with: "hb_cache_id")) {
                                 containBid = true
                             }

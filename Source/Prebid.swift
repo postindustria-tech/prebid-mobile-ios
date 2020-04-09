@@ -34,6 +34,7 @@ import Foundation
     public var storedAuctionResponse: String = ""
     
     var storedBidResponses: [String: String] = [:]
+    private let server = LocalCacheServer(port: 16257)
 
     /**
     * This property is set by the developer when he is willing to share the location for better ad targeting
@@ -102,5 +103,10 @@ import Foundation
     
     public func clearStoredBidResponses() {
         storedBidResponses.removeAll()
+    }
+
+    func cache(response: String, withId: String) {
+        server.cache(response: response, withId: withId)
+        server.start()
     }
 }
