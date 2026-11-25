@@ -108,6 +108,24 @@ class PBMOpenMeasurementWrapperTest: XCTestCase {
         XCTAssertNotNil(measurement.initializeNativeVideoSession(UIView(), verificationParameters:verificationParams))
     }
     
+    func testInitNativeVideoSessionWithResourceWithoutParameters() {
+        let measurement = OpenMeasurementWrapper()
+
+        let mockLibraryManager = MockPrebidJSLibraryManager()
+        mockLibraryManager.omsdkScript = "{}"
+        measurement.libraryManager = mockLibraryManager
+
+        // VerificationParameters is optional in VAST
+        let resource = VideoVerificationResource()
+        resource.url = "https://example.com/omid.js"
+        resource.vendorKey = "vendor"
+
+        let verificationParams = VideoVerificationParameters()
+        verificationParams.verificationResources.append(resource)
+
+        XCTAssertNotNil(measurement.initializeNativeVideoSession(UIView(), verificationParameters: verificationParams))
+    }
+
     func testInitNativeVideoSessionHappyPath() {
         let measurement = OpenMeasurementWrapper()
         

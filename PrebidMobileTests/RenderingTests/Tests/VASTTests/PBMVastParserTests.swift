@@ -276,4 +276,32 @@ class PBMVastParserTests: XCTestCase {
         
         XCTAssertTrue(log.contains(expectedLog), "Log: \"\(log)\" not contains: \"\(expectedLog)\"", file: file, line: line)
     }
+
+    func testParseAdVerificationsInWrapper() {
+        let vast = """
+        <VAST version="4.2">
+          <Ad id="w">
+            <Wrapper>
+              <AdSystem>wrapper</AdSystem>
+              <VASTAdTagURI><![CDATA[https://example.com/vast]]></VASTAdTagURI>
+              <AdVerifications>
+                <Verification vendor="wrapperVendor">
+                  <JavaScriptResource apiFramework="omid"><![CDATA[https://wrapper.example.com/omid.js]]></JavaScriptResource>
+                  <VerificationParameters><![CDATA[p=1]]></VerificationParameters>
+                </Verification>
+              </AdVerifications>
+            </Wrapper>
+          </Ad>
+        </VAST>
+        """
+
+        let response = VastParser().parseAdsResponse(vast.data(using: .utf8)!)
+        let wrapper = response?.vastAbstractAds.first as? VastWrapperAd
+        let resources = wrapper?.verificationParameters.verificationResources
+
+        XCTAssertEqual(resources?.count, 1)
+        XCTAssertEqual(resources?.first?.vendorKey, "wrapperVendor")
+        XCTAssertEqual(resources?.first?.url, "https://wrapper.example.com/omid.js")
+        XCTAssertEqual(resources?.first?.params, "p=1")
+    }
 }

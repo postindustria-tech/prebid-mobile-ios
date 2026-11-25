@@ -291,7 +291,7 @@ enum VastParserParityCases {
         """),
 
         // Verification: resources with and without tracking, JavaScriptResource attributes, parameters, and a
-        // Verification outside AdVerifications (dropped), and AdVerifications inside a Wrapper (dropped).
+        // Verification outside AdVerifications (dropped), and AdVerifications inside a Wrapper (kept on the wrapper ad, not on an inline ad).
         ("synthetic_verifications", """
         <VAST version="4.0">
           <Ad id="v-1">

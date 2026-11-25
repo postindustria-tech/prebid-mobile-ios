@@ -117,6 +117,13 @@ class OpenMeasurementWrapper: NSObject, OMSessionWrapper {
     func initializeNativeVideoSession(_ videoView: UIView,
                                       verificationParameters: VideoVerificationParameters?) -> OMSession? {
 
+        // An ad without verification scripts is not measured: this is not an error.
+        let resources = scriptResources(from: verificationParameters)
+        if resources.isEmpty {
+            Log.debug("The video ad has no verification scripts, so no Open Measurement session is created.")
+            return nil
+        }
+
         guard let jsLib = fetchOMSDKScript() else {
             Log.error("Open Measurement SDK can't work without valid js script")
             return nil
@@ -129,7 +136,7 @@ class OpenMeasurementWrapper: NSObject, OMSessionWrapper {
             }
             context = try OMIDPrebidorgAdSessionContext(partner: partner,
                                                         script: jsLib,
-                                                        resources: scriptResources(from: verificationParameters),
+                                                        resources: resources,
                                                         contentUrl: nil,
                                                         customReferenceIdentifier: nil)
         } catch {
@@ -227,8 +234,8 @@ class OpenMeasurementWrapper: NSObject, OMSessionWrapper {
         var scripts = [OMIDPrebidorgVerificationScriptResource]()
 
         for vastResource in verificationParameters?.verificationResources ?? [] {
-            guard let urlString = vastResource.url, let vendorKey = vastResource.vendorKey, let params = vastResource.params else {
-                Log.error("Invalid Verification Resource. All properties should be provided. Url: \(vastResource.url ?? "(null)"), vendorKey: \(vastResource.vendorKey ?? "(null)"), params: \(vastResource.params ?? "(null)")")
+            guard let urlString = vastResource.url else {
+                Log.error("Invalid Verification Resource. The url should be provided. vendorKey: \(vastResource.vendorKey ?? "(null)"), params: \(vastResource.params ?? "(null)")")
                 continue
             }
 
@@ -238,8 +245,16 @@ class OpenMeasurementWrapper: NSObject, OMSessionWrapper {
                 continue
             }
 
-            guard let resource = OMIDPrebidorgVerificationScriptResource(url: url, vendorKey: vendorKey, parameters: params) else {
-                Log.error("Can't create OM Verification Resource. Url: \(urlString), vendorKey: \(vendorKey), params: \(params)")
+            // VerificationParameters is optional in VAST, but OM SDK rejects an empty vendor or parameters.
+            let resource: OMIDPrebidorgVerificationScriptResource?
+            if let vendorKey = vastResource.vendorKey, !vendorKey.isEmpty, let params = vastResource.params, !params.isEmpty {
+                resource = OMIDPrebidorgVerificationScriptResource(url: url, vendorKey: vendorKey, parameters: params)
+            } else {
+                resource = OMIDPrebidorgVerificationScriptResource(url: url)
+            }
+
+            guard let resource else {
+                Log.error("Can't create OM Verification Resource. Url: \(urlString), vendorKey: \(vastResource.vendorKey ?? "(null)"), params: \(vastResource.params ?? "(null)")")
                 continue
             }
 

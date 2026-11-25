@@ -419,7 +419,12 @@ class VastParser: NSObject, XMLParserDelegate {
 
         case "AdVerifications":
             if let verificationParameter {
-                inlineAd?.verificationParameters = verificationParameter
+                if let inlineAd {
+                    inlineAd.verificationParameters = verificationParameter
+                } else {
+                    // Since VAST 4.1 a wrapper can add verifications to the ad it resolves to.
+                    wrapperAd?.verificationParameters = verificationParameter
+                }
             }
             verificationParameter = nil
 

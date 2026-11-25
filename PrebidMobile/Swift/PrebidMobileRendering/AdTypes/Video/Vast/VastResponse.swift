@@ -59,6 +59,7 @@ class VastResponse: NSObject {
 
                     // Copy our tracking info onto the inline ads
                     unwrappedVastResponse.copyTracking(fromWrapper: wrapper, toInlineAds: inlineAdsFromWrapper)
+                    unwrappedVastResponse.copyVerifications(fromWrapper: wrapper, toInlineAds: inlineAdsFromWrapper)
                     inlineAdAccumulator.append(contentsOf: inlineAdsFromWrapper)
                 } catch {
                     // The ObjC left the nested error in its out-param and went on with the remaining ads;
@@ -89,6 +90,29 @@ class VastResponse: NSObject {
         let error = PBMError.error(message: message, type: type)
         Log.error("\(error)")
         return error
+    }
+
+    // Adds the verifications of the wrapper to its inline ads, after the ad's own.
+    // The same script is often repeated along the chain; running it twice would double count.
+    private func copyVerifications(fromWrapper wrapper: VastWrapperAd, toInlineAds inlineAds: [VastAbstractAd]) {
+        let wrapperResources = wrapper.verificationParameters.verificationResources
+        guard !wrapperResources.isEmpty else {
+            return
+        }
+
+        for case let inlineAd as VastInlineAd in inlineAds {
+            for wrapperResource in wrapperResources {
+                let isDuplicate = inlineAd.verificationParameters.verificationResources.contains {
+                    $0.url == wrapperResource.url
+                        && $0.vendorKey == wrapperResource.vendorKey
+                        && $0.params == wrapperResource.params
+                }
+
+                if !isDuplicate {
+                    inlineAd.verificationParameters.verificationResources.append(wrapperResource)
+                }
+            }
+        }
     }
 
     private func copyTracking(fromWrapper wrapper: VastWrapperAd, toInlineAds inlineAds: [VastAbstractAd]) {
