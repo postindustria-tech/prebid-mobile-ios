@@ -86,4 +86,51 @@ class VastResponseFlattenTest: XCTestCase {
     func testEmptyResponseReportsNoInlineAds() {
         XCTAssertEqual(failure(of: makeResponse(ads: [])), noInlineAds)
     }
+
+    // MARK: - Wrapper verifications
+
+    private func makeResource(vendor: String, url: String = "https://example.com/omid.js") -> VideoVerificationResource {
+        let resource = VideoVerificationResource()
+        resource.vendorKey = vendor
+        resource.url = url
+        resource.params = "p=1"
+        return resource
+    }
+
+    func testWrapperVerificationsAreAddedToTheInlineAd() throws {
+        let inlineAd = VastInlineAd()
+        inlineAd.verificationParameters.verificationResources = [makeResource(vendor: "inline")]
+
+        let innerWrapper = makeWrapper(resolvingTo: makeResponse(ads: [inlineAd]))
+        innerWrapper.verificationParameters.verificationResources = [makeResource(vendor: "inner")]
+
+        let outerWrapper = makeWrapper(resolvingTo: makeResponse(ads: [innerWrapper]))
+        outerWrapper.verificationParameters.verificationResources = [makeResource(vendor: "outer")]
+
+        _ = try makeResponse(ads: [outerWrapper]).flattenResponse()
+
+        XCTAssertEqual(inlineAd.verificationParameters.verificationResources.map(\.vendorKey), ["inline", "inner", "outer"])
+    }
+
+    func testWrapperVerificationsAreAddedToAnInlineAdWithoutItsOwn() throws {
+        let inlineAd = VastInlineAd()
+        let wrapper = makeWrapper(resolvingTo: makeResponse(ads: [inlineAd]))
+        wrapper.verificationParameters.verificationResources = [makeResource(vendor: "wrapper")]
+
+        _ = try makeResponse(ads: [wrapper]).flattenResponse()
+
+        XCTAssertEqual(inlineAd.verificationParameters.verificationResources.map(\.vendorKey), ["wrapper"])
+    }
+
+    func testWrapperVerificationTheInlineAdAlreadyHasIsSkipped() throws {
+        let inlineAd = VastInlineAd()
+        inlineAd.verificationParameters.verificationResources = [makeResource(vendor: "vendor")]
+
+        let wrapper = makeWrapper(resolvingTo: makeResponse(ads: [inlineAd]))
+        wrapper.verificationParameters.verificationResources = [makeResource(vendor: "vendor")]
+
+        _ = try makeResponse(ads: [wrapper]).flattenResponse()
+
+        XCTAssertEqual(inlineAd.verificationParameters.verificationResources.count, 1)
+    }
 }

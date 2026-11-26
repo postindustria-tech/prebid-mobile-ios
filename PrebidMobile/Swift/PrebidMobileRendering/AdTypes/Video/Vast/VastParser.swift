@@ -35,6 +35,12 @@ class VastParser: NSObject, XMLParserDelegate {
     var verificationParameter: VideoVerificationParameters?
     var verificationResource: VideoVerificationResource?
 
+    // Where the verifications of the current ad came from.
+    private enum AdVerificationsSource {
+        case none, fromExtension, node
+    }
+    private var adVerificationsSource = AdVerificationsSource.none
+
     // Creative
     var creative: VastCreativeAbstract?
     var creativeAttributes: [String: String]?
@@ -363,6 +369,7 @@ class VastParser: NSObject, XMLParserDelegate {
             wrapperAd = nil
             ad = nil
             adAttributes = nil
+            adVerificationsSource = .none
 
         case "Creative":
             creative?.id = creativeAttributes?["id"]
@@ -419,7 +426,20 @@ class VastParser: NSObject, XMLParserDelegate {
 
         case "AdVerifications":
             if let verificationParameter {
-                inlineAd?.verificationParameters = verificationParameter
+                // An ad has one AdVerifications node (VAST 4.2, 3.16). Before VAST 4.1 an Extension carried it,
+                // and a tag may repeat it there for older players: the node wins, then the first Extension.
+                let isInExtension = elementPath.contains("Extension")
+
+                if !isInExtension || adVerificationsSource == .none {
+                    adVerificationsSource = isInExtension ? .fromExtension : .node
+
+                    if let inlineAd {
+                        inlineAd.verificationParameters = verificationParameter
+                    } else {
+                        // A wrapper can add verifications to the ad it resolves to (VAST 4.2, 2.4.2).
+                        wrapperAd?.verificationParameters = verificationParameter
+                    }
+                }
             }
             verificationParameter = nil
 

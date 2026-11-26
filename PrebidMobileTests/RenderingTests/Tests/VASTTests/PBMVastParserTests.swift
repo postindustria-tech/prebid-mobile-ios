@@ -276,4 +276,110 @@ class PBMVastParserTests: XCTestCase {
         
         XCTAssertTrue(log.contains(expectedLog), "Log: \"\(log)\" not contains: \"\(expectedLog)\"", file: file, line: line)
     }
+
+    func testParseAdVerificationsInWrapper() {
+        let vast = """
+        <VAST version="4.2">
+          <Ad id="w">
+            <Wrapper>
+              <AdSystem>wrapper</AdSystem>
+              <VASTAdTagURI><![CDATA[https://example.com/vast]]></VASTAdTagURI>
+              <AdVerifications>
+                <Verification vendor="wrapperVendor">
+                  <JavaScriptResource apiFramework="omid"><![CDATA[https://wrapper.example.com/omid.js]]></JavaScriptResource>
+                  <VerificationParameters><![CDATA[p=1]]></VerificationParameters>
+                </Verification>
+              </AdVerifications>
+            </Wrapper>
+          </Ad>
+        </VAST>
+        """
+
+        let response = VastParser().parseAdsResponse(vast.data(using: .utf8)!)
+        let wrapper = response?.vastAbstractAds.first as? VastWrapperAd
+        let resources = wrapper?.verificationParameters.verificationResources
+
+        XCTAssertEqual(resources?.count, 1)
+        XCTAssertEqual(resources?.first?.vendorKey, "wrapperVendor")
+        XCTAssertEqual(resources?.first?.url, "https://wrapper.example.com/omid.js")
+        XCTAssertEqual(resources?.first?.params, "p=1")
+    }
+
+    // MARK: - AdVerifications node and its Extension form
+
+    private func verifications(vendor: String) -> String {
+        """
+        <AdVerifications>
+          <Verification vendor="\(vendor)">
+            <JavaScriptResource apiFramework="omid"><![CDATA[https://\(vendor).example.com/omid.js]]></JavaScriptResource>
+          </Verification>
+        </AdVerifications>
+        """
+    }
+
+    private func verificationsExtension(vendor: String) -> String {
+        "<Extension type=\"AdVerifications\">\(verifications(vendor: vendor))</Extension>"
+    }
+
+    private func inlineAd(_ children: String) -> String {
+        "<Ad><InLine><AdSystem>inline</AdSystem>\(children)</InLine></Ad>"
+    }
+
+    private func wrapperAd(_ children: String) -> String {
+        "<Ad><Wrapper><AdSystem>wrapper</AdSystem><VASTAdTagURI><![CDATA[https://example.com/vast]]></VASTAdTagURI>\(children)</Wrapper></Ad>"
+    }
+
+    // The vendors of the verifications each ad of the document ends up with.
+    private func parsedVendors(_ ads: String, file: StaticString = #filePath, line: UInt = #line) -> [[String?]] {
+        let vast = "<VAST version=\"4.2\">\(ads)</VAST>"
+        guard let response = VastParser().parseAdsResponse(Data(vast.utf8)) else {
+            XCTFail("The document is not parsed", file: file, line: line)
+            return []
+        }
+
+        return response.vastAbstractAds.map { ad in
+            let parameters = (ad as? VastInlineAd)?.verificationParameters ?? (ad as? VastWrapperAd)?.verificationParameters
+            return parameters?.verificationResources.map(\.vendorKey) ?? []
+        }
+    }
+
+    func testAdVerificationsNodeWinsOverALaterExtension() {
+        let ad = inlineAd(verifications(vendor: "node") + "<Extensions>\(verificationsExtension(vendor: "extension"))</Extensions>")
+
+        XCTAssertEqual(parsedVendors(ad), [["node"]])
+    }
+
+    func testAdVerificationsNodeWinsOverAnEarlierExtension() {
+        let ad = inlineAd("<Extensions>\(verificationsExtension(vendor: "extension"))</Extensions>" + verifications(vendor: "node"))
+
+        XCTAssertEqual(parsedVendors(ad), [["node"]])
+    }
+
+    func testAdVerificationsExtensionIsUsedWithoutTheNode() {
+        let ad = inlineAd("<Extensions>\(verificationsExtension(vendor: "extension"))</Extensions>")
+
+        XCTAssertEqual(parsedVendors(ad), [["extension"]])
+    }
+
+    func testFirstAdVerificationsExtensionWins() {
+        let extensions = verificationsExtension(vendor: "first") + verificationsExtension(vendor: "second")
+        let ad = inlineAd("<Extensions>\(extensions)</Extensions>")
+
+        XCTAssertEqual(parsedVendors(ad), [["first"]])
+    }
+
+    func testAdVerificationsNodeWinsOverTheExtensionInAWrapper() {
+        let ad = wrapperAd(verifications(vendor: "node") + "<Extensions>\(verificationsExtension(vendor: "extension"))</Extensions>")
+
+        XCTAssertEqual(parsedVendors(ad), [["node"]])
+    }
+
+    // The choice is made per ad: a node in one ad does not hide the Extension of the next one.
+    func testAdVerificationsSourceIsChosenPerAd() {
+        let first = inlineAd(verifications(vendor: "node"))
+        let second = inlineAd("<Extensions>\(verificationsExtension(vendor: "extension"))</Extensions>")
+        let third = wrapperAd("<Extensions>\(verificationsExtension(vendor: "wrapperExtension"))</Extensions>")
+
+        XCTAssertEqual(parsedVendors(first + second + third), [["node"], ["extension"], ["wrapperExtension"]])
+    }
 }

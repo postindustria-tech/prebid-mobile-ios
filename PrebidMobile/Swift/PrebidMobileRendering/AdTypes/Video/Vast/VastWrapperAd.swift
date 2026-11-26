@@ -27,6 +27,9 @@ class VastWrapperAd: VastAbstractAd {
     var allowMultipleAds = false
     var fallbackOnNoAd = false
 
+    /// The verifications of the wrapper. They are merged into the InLine ads it resolves to.
+    var verificationParameters = VideoVerificationParameters()
+
     override init() {
         super.init()
     }
